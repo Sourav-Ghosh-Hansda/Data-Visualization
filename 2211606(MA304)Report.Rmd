@@ -1,0 +1,824 @@
+---
+title: "MA304-Report: 2211606"
+author: "Ghosh Hansda, Sourav"
+subtitle: policing dataset from Dallas, Texas in 2016
+output: html_document
+---
+```{r setup, include=FALSE}
+### Don't delete this setup code chunk from your file
+knitr::opts_chunk$set(echo = FALSE, message =FALSE, warning =FALSE, comment = NULL)
+## DON'T ALTER THIS: this is to prevent printing the code or any unnecessary addition in your final "html" report file.
+# You can extend this list below to load all the packages required for your analyses:
+#==================================================================================
+library(ggplot2)
+library(xts)
+library(reshape2)
+library(tidyr)
+library(dplyr)
+library(rgdal)
+library(ggplot2)
+library(Rcpp)
+library(sf)
+library(corrplot)
+library(tidyverse)
+library(ggmap)
+register_google(key = "AIzaSyCzc2PGnmfFo8Xc4rpU18_x1YvPA0hV3sM")
+library(leaflet)
+library(leaflet.extras)
+library(plotly)
+library(DT)
+library(fivethirtyeight)
+library(lubridate)
+library(hms)
+library(scales)
+library(corrplot)
+library(ggthemes)
+library(ggcorrplot)
+library(zoo)
+library(TTR)
+library(scales)
+# load the data
+#=========================
+police_data<-read.csv("C:/Users/Admin/OneDrive - University of Essex/MA304/Project/Practice/37-00049_UOF-P_2016_prepped.csv")
+police_data<-slice(police_data,-1)
+police_data <- police_data %>% 
+  na.omit()
+police_data <- police_data[complete.cases(police_data), ]
+police_data <- distinct(police_data)
+police_data
+```
+# Introduction
+<p style="text-align: justify;"><b>This report aims to explore and visualize the policing data set in Dallas, Texas in 2016. The data set contains information about incidents where force was used by police officers. The following analysis will use various plots and tables to better understand the data set and draw insights from it.</b></p>
+
+# Results
+<p style="text-align: justify;"><b>The pie chart shows that the male officers are the ruling majority, accounting for around 90% of the police force. On the other hand, female officers make up for the minority covering only about 10% of the police force.This suggests that there is a gender imbalance in the police force, with male officers dominating the profession.This raises concerns about whether the police force accurately represents the community it serves and whether women are adequately represented in law enforcement.</b></p>
+```{r, echo=FALSE}
+##officer gender
+# Filter data for male and female subjects only
+officer_gender <- police_data %>%
+  filter(OFFICER_GENDER %in% c("Male", "Female"))
+
+# Calculate the percentage of each gender
+gender_percent <- officer_gender %>%
+  group_by(OFFICER_GENDER) %>%
+  summarize(count = n()) %>%
+  mutate(percent = round(count/sum(count)*100,1))
+
+# Create the pie chart
+ggplot(gender_percent, aes(x="", y=percent, fill=OFFICER_GENDER)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + ggtitle("Officer Gender")+
+  theme_void() +
+  geom_text(aes(label=paste0(percent,"%")), position=position_stack(vjust=0.5))
+```
+<p style="text-align: justify;"><b>The  bar chart that shows how the gender and race are distributed among police officers.It seems that there are more white police officers compared to officers from other racial backgrounds.This suggests that there may be a lack of representation of minority groups within law enforcement.The chart also reveals a gender disparity in the police force, with more male officers than female officers.</b></p>
+```{r, echo=FALSE}
+# create a table of gender and race counts
+Police_gender_race_table <- table(police_data$OFFICER_GENDER, police_data$OFFICER_RACE)
+
+# create a data frame from the table
+Police_gender_race_df <- as.data.frame(Police_gender_race_table)
+colnames(Police_gender_race_df) <- c("Gender", "Race", "Count")
+
+# create the bar plot
+ggplot(Police_gender_race_df, aes(x = Race, y = Count, fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = Count), position = position_dodge(width = 0.9), vjust = -0.5) +
+  labs(title = "Gender and Race of Police Officers", x = "Race", y = "Count") +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic()
+
+```
+<p style="text-align: justify;"><b>The plot below shows the number of responses to resistance by the different divisions in the City of Dallas police force in the year 2016.The x-axis represents the City of Dallas police divisions, while the y-axis shows the number of responses to resistance.The Central division had the highest number of responses to resistance compared to other divisions, which is expected because of the high crime rate in that area so the Central division has to be on high alert because of the high crime rate in the area. However,the other divisions  also had sufficient responses to resistance to the incidents and are not negligible, thus it gives us the insight that the police force as a whole works tirelessly to keep the city safe.</b></p>
+```{r, echo=FALSE}
+division_plot <- police_data %>% 
+  drop_na() %>%
+  ggplot() + 
+  geom_bar(aes(x = DIVISION)) +
+  coord_flip() + 
+  labs(y = "Number of Responses to Resistance", x = "City of Dallas Police Divisions",
+       title = "Responses to Resistance by City of Divisions in 2016")
+division_plot
+```
+<p style="text-align: justify;"><b>This plot displays the relationship between the years of experience of police officers and the number of incidents they had responded to in 2016. Surprisingly, the graph suggests that the officers with less than 5 years of experience had encountered the most of the incidents compared to their more experienced colleagues.The number of incidents is displayed on the y-axis and years of experience on the x-axis.</b></p>
+```{r, echo=FALSE}
+experience_plot<-range(police_data$OFFICER_YEARS_ON_FORCE)
+experience_plot <- police_data %>% 
+  drop_na() %>%
+  ggplot() + 
+  geom_bar(aes(x = OFFICER_YEARS_ON_FORCE), stat = "count", 
+           alpha = 0.5, color = "white") +
+  labs(x = "Years on Police Force", y = "Number of Incidents",
+       title = "Police Officer Experience per Response to Resistance in 2016")
+experience_plot
+```
+<p style="text-align: justify;"><b>The data table displays the number of years each officer has been on the force, based on their hire date and the current date.The table comprises of the officer's ID, hire date, and years on the force.The table is user-friendly and can be sorted by any of the columns, allowing easy comparison between different officers or groups of officers. The length of the table can also be adjusted based on the user's needs. Overall, the table provides valuable insights into the composition and experience of the police department.</b></p>
+```{r, echo=FALSE}
+officer_hired <- data.frame(police_data$OFFICER_ID, police_data$OFFICER_HIRE_DATE, police_data$OFFICER_YEARS_ON_FORCE)
+colnames(officer_hired) <- c("Officer ID", "Hire Date", "Years on Force")
+
+datatable(officer_hired, 
+          options = list(pageLength = 10, lengthMenu = c(5, 10, 15, 20)),
+          rownames = FALSE) 
+```
+<p style="text-align: justify;"><b>This plot displays the experience of police officers in terms of the years they have served on the force, categorized by different genders and races.Each bar stands for the count of officers for each combination of gender, race, and years of experience. The plot is split into two one for the male officers and another for the female officers, containing different racial categories.The highest count of officers falls under the category of officers having served on the force for about 0 to 5 years, followed by the officers with 6 to 10 years of experience. For instance Male officers outnumber female officers in all experience categories, and white officers outnumber officers from other racial categories in most experience categories. Overall, the plot provides a clear and concise information about the police force and how the experience is distributed across different genders and races.</b></p>
+```{r, echo=FALSE}
+Police_gender_race_years_table <- data.frame(
+  Gender = police_data$OFFICER_GENDER,
+  Race = police_data$OFFICER_RACE,
+  Years = police_data$OFFICER_YEARS_ON_FORCE)
+  
+# Calculate the counts for each combination of gender, race, and years status
+counts <- Police_gender_race_years_table %>%
+  group_by(Gender, Race, Years) %>%
+  summarize(count = n(),.groups = "drop")
+
+# Create the bar plot
+ggplot(counts, aes(x = Years, y = count, fill = Race)) +
+  geom_col(position = "dodge") +
+  ggtitle("Experience of police officers by different genders & races") +
+  facet_grid(Gender ~ ., scales = "free_y") +
+  labs(x = "Years on Force", y = "Count", fill = "Race") +
+  theme_bw()
+```
+<p style="text-align: justify;"><b>The plot shows the correlation between different variables related to police officers involved in use of force during incidents.The darker the color, the stronger the correlation between the two variables.It includes the officer's gender, race, years on force, injuries sustained during the incident, and whether hospitalization was required and also includes the number of EC (electronic control) cycles used during the incident.The plot is a grid with each variable listed on both the rows and columns. The intersection between two variables shows the correlation coefficient between them, which ranges from -1 to 1. A coefficient of 1 means the two variables are perfectly positively correlated, while a coefficient of -1 means they are perfectly negatively correlated. A coefficient of 0 means there is no correlation between the two variables.</b></p>
+```{r, echo=FALSE}
+officer_data <- police_data %>%
+  select(UOF_NUMBER, OFFICER_GENDER, OFFICER_RACE, OFFICER_YEARS_ON_FORCE,
+         OFFICER_INJURY, OFFICER_INJURY_TYPE, OFFICER_HOSPITALIZATION, NUMBER_EC_CYCLES) %>%
+  mutate(UOF_NUMBER = factor(UOF_NUMBER),
+         OFFICER_GENDER = factor(OFFICER_GENDER),
+         OFFICER_RACE = factor(OFFICER_RACE),
+         OFFICER_INJURY = factor(OFFICER_INJURY),
+         OFFICER_INJURY_TYPE = factor(OFFICER_INJURY_TYPE),
+         OFFICER_HOSPITALIZATION = factor(OFFICER_HOSPITALIZATION),
+         OFFICER_YEARS_ON_FORCE = factor(OFFICER_YEARS_ON_FORCE),
+         NUMBER_EC_CYCLES = factor(NUMBER_EC_CYCLES)) %>%
+  mutate(across(everything(), as.numeric))
+library(ggcorrplot)
+
+ggcorrplot(cor(officer_data), hc.order = TRUE, 
+           type = "lower", lab = TRUE, lab_size = 3)
+```
+<p style="text-align: justify;"><b>The table presents the number of officers that have used force against the subjects.It contains the unique UOF(Use of Force) numbers, corresponding officer IDs, and the gender of the officers.The table is interactive, and one can filter and sort the data quickly as well.Over all the table contains the information which can help us to identify police officers who used force and uncover any potential biases or any areas where the officers require any improvements in their training and practices.</b></p>
+```{r, echo=FALSE}
+incidents <- data.frame(UOF_NUMBER = police_data$UOF_NUMBER,
+                        OFFICER_ID = police_data$OFFICER_ID,Gender=police_data$OFFICER_GENDER)
+incidents <- incidents[complete.cases(incidents), ]
+
+datatable(incidents, options = list(pageLength = 10))
+```
+<p style="text-align: justify;"><b>The table displays the number of times officers have used Electronic Control (EC) on subjects.It shows the number of times officers have used EC on subjects along with the Officer ID, gender,race & the subject's race as well. The majority of the male officers have used the EC on subjects who hail from the black race. Additionally, officers who used EC were predominantly White, followed by Black and Hispanic officers.This raises important questions about the use of force by police officers and whether the use of electroshock cycles is justified in certain situations against the subjects.Overall the table provides new insight on the use of EC by police officers on the subjects and the impact this can have on different communities.</b></p>
+```{r, echo=FALSE}
+EC <- data.frame(OFFICER_ID = police_data$OFFICER_ID,NUMBER_EC_CYCLES = police_data$NUMBER_EC_CYCLES,Gender=police_data$OFFICER_GENDER,Subject_Race=police_data$SUBJECT_RACE,Officer_Race=police_data$OFFICER_RACE)
+EC <- EC[complete.cases(EC), ]
+EC <- subset(EC, NUMBER_EC_CYCLES != "NULL")
+datatable(EC, rownames = FALSE)
+```
+<p style="text-align: justify;"><b>The plot depicts the reasons for the use of force by police officers on different subject races.As the plot is interactive the frequency of each reason for force is shown on the y-axis and the subject races on the color-coded x-axis & each color represents a different race.From the plot, we can gather that most of the common reasons for the use of force is "Resisting Arrest," followed by "Aggravated Assault on Police Officer" and "Assault on Police Officer" for all races.
+The plot shows that there are different reasons for the use of force by police officers on different subject races. For instance, the reason for force "Moving Traffic Violation" is used more frequently on White and Hispanic subjects, whereas "Suspicious Person" is commonly used on Black and Native American subjects. Additionally,it also shows that "Assault on Officer" is more frequently used on Black and Hispanic subjects.We can also see that "Possession of a Weapon" is a more common reason for using force on Black and Hispanic subjects than on White and Asian subjects.In some situations the plot tends to show  the need for understanding and addressing the potential for bias in the use of force by police officers, particularly in cases where the reason for force is used more frequently on certain subject races.Overall the plot highlights the differences in the use of force on different subject races and can provide new insights on how police officers should approach and handle situations with different races for ensuring equal treatment and protection under the law for all individuals.</b></p>
+```{r, echo=FALSE}
+# Create the table of frequencies
+reason_force <- data.frame(table(police_data$REASON_FOR_FORCE, police_data$SUBJECT_RACE))
+reason_force <- na.omit(reason_force)
+reason_force <- subset(reason_force, Var1 != "NULL" & Var2 != "NULL")
+
+# Rename the columns Var1 and Var2 to reason and subject_race respectively
+reason_force <- reason_force %>% rename(reason = Var1, subject_race = Var2)
+
+# Create the interactive dot plot
+ggplotly(
+  ggplot(reason_force, aes(x = Freq, y = reason, color = subject_race)) +
+    geom_point(size = 2) +
+    scale_x_continuous(expand = c(0, 0), limits = c(0, max(reason_force$Freq) + 5)) +
+    labs(title = "Reasons for Use of Force by Police on Different Subject Races", x = "Frequency", y = "Reason for Force", color = "Subject Race") +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(axis.text.y = element_text(size = 8)) +
+    theme(axis.text.x = element_text(size = 8)) +
+    theme(axis.title = element_text(size = 10, face = "bold")) +
+    theme(panel.grid.major.x = element_line(color = "gray", linetype = "dashed")) +
+    guides(color = guide_legend(title = "Subject Race"))
+)
+```
+<p style="text-align: justify;"><b>The plot depicts the reasons why police officers used force on subjects with different conditions.As the plot is interactive,each point on the plot represents a reason for the use of force.The x-axis shows the frequency of the reasons for the use of force, and the y-axis represents the different reasons for force. The color of the points represents the condition of the subject involved.
+We can notice that the most common reason for the use of force by police across all subject conditions is "Resisting Arrest," followed by "Obstruction of Justice" and "Disorderly Conduct." However, we can also see that there are differences in the reasons for force used on subjects of different conditions. For example, the use of force for "Mental Health Crisis" appears to be more common when dealing with subjects who are homeless or have a mental illness compared to those who are not.Also the most common reason for police use of force across all subject conditions is "Resisting Arrest." & the use of force for "Mental Health Crisis" appears to be more common when dealing with subjects with a "Psychological Disorder" compared to subjects with other conditions.</b></p>
+```{r, echo=FALSE}
+# Create the table of frequencies
+reason_force <- data.frame(table(police_data$REASON_FOR_FORCE, police_data$SUBJECT_DESCRIPTION))
+reason_force <- na.omit(reason_force)
+reason_force <- subset(reason_force, Var1 != "NULL" & Var2 != "NULL")
+
+# Rename the columns Var1 and Var2 to reason and subject_race respectively
+reason_force <- reason_force %>% rename(reason = Var1, subject_description = Var2)
+
+# Create the interactive dot plot
+ggplotly(
+  ggplot(reason_force, aes(x = Freq, y = reason, color = subject_description)) +
+    geom_point(size = 2) +
+    scale_x_continuous(expand = c(0, 0), limits = c(0, max(reason_force$Freq) + 5)) +
+    labs(title = "Reasons for Use of Force by Police on Different Subject Conditions", x = "Frequency", y = "Reason for Force", color = "Subject Condition") +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(axis.text.y = element_text(size = 8)) +
+    theme(axis.text.x = element_text(size = 8)) +
+    theme(axis.title = element_text(size = 10, face = "bold")) +
+    theme(panel.grid.major.x = element_line(color = "gray", linetype = "dashed")) +
+    guides(color = guide_legend(title = "Subject Condition"))
+)
+```
+<p style="text-align: justify;"><b>The plot shows us the different types of force techniques used by police officers to catch their subjects.The x-axis represents the types of forces and the y-axis represents the count. It shows us that handcuffs were the most commonly used force technique, followed by takedowns and joint locks. The officers use various methods, including handcuffs, verbal commands, takedown, and joint lock. The plot indicates that some of the forces used were not specified and others were only used once or twice.</b></p>
+```{r, echo=FALSE}
+force_used<-data.frame(table(c(police_data$TYPE_OF_FORCE_USED1, police_data$TYPE_OF_FORCE_USED2, police_data$TYPE_OF_FORCE_USED3, police_data$TYPE_OF_FORCE_USED4, police_data$TYPE_OF_FORCE_USED5, police_data$TYPE_OF_FORCE_USED6, police_data$TYPE_OF_FORCE_USED7, police_data$TYPE_OF_FORCE_USED8, police_data$TYPE_OF_FORCE_USED9, police_data$TYPE_OF_FORCE_USED10)))
+force_used<-slice(force_used,-1)
+force_used<- na.omit(force_used)
+force_used_df <- as.data.frame(force_used)
+
+ggplotly(
+  ggplot(force_used_df, aes(x = force_used_df$Var1, y = Freq)) +
+  geom_bar(stat = "identity", fill = "blue", color = "black") +
+  labs(title = "Distribution of Forces Used", 
+       x = "Forces Used", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  scale_x_discrete(labels = function(x) paste0(x, " (", seq_along(x), ")"))
+)
+```
+<p style="text-align: justify;"><b>The plot shows the frequency of different types of force used by the police on different racial groups.The types of force used by the officers are on the x-axis and the frequency of each type of force used on the y-axis. The bars are grouped  together by the different races and are color-coded to represent different racial groups.As the plot is interactive,we can hover over the bars to see the exact frequency of each type of force used on each racial group.So we can see that most of the types of forces used by police officers is implemented on the subjects hailing from the "Black" race & least implemented on subjects from the "White" race.Overall, this helps to better understand the use of force by police officers on different races.</b></p>
+```{r, echo=FALSE}
+force_used<-data.frame(table(c(police_data$TYPE_OF_FORCE_USED1, police_data$TYPE_OF_FORCE_USED2, police_data$TYPE_OF_FORCE_USED3, police_data$TYPE_OF_FORCE_USED4, police_data$TYPE_OF_FORCE_USED5, police_data$TYPE_OF_FORCE_USED6, police_data$TYPE_OF_FORCE_USED7, police_data$TYPE_OF_FORCE_USED8, police_data$TYPE_OF_FORCE_USED9, police_data$TYPE_OF_FORCE_USED10)))
+force_used<-slice(force_used,-1)
+force_used<- na.omit(force_used)
+subject_races <- police_data %>% 
+                  filter(SUBJECT_RACE %in% c("American Ind", "Asian", "Black", "Hispanic", "White", "Other")) %>% 
+                  select(SUBJECT_RACE)
+# Combine force_used and subject_races into a single variable
+force_used_subject_races <- merge(force_used, subject_races, all = TRUE)
+
+# Convert variables to factors
+force_used_subject_races$force <- factor(force_used_subject_races$Var1)
+force_used_subject_races$SUBJECT_RACE <- factor(force_used_subject_races$SUBJECT_RACE)
+
+# Define color palette
+my_colors <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00")
+
+# Create interactive bar plot
+ggplotly(
+  ggplot(force_used_subject_races, aes(x = force, fill = SUBJECT_RACE)) +
+    geom_bar() +
+    labs(title = "Force Used on Different Subject Races", x = "Force Used", y = "Frequency", fill = "Subject Race") +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust=1)) +
+    theme(axis.text.y = element_text(size = 8)) +
+    theme(axis.title = element_text(size = 10, face = "bold")) +
+    theme(panel.grid.major.x = element_blank()) +
+    guides(fill = guide_legend(title = "Subject Race", title.position = "top", ncol = 2)) +
+    scale_fill_manual(values = my_colors)
+)
+```
+
+<p style="text-align: justify;"><b>The plot provides the information on the effectiveness of the force used by police officers on the subjects. This bar chart is interactive that shows the different types of force used by officers and how effective they were in achieving the desired outcome. frequency of different types of force used by the police officers on the x-axis and the effectiveness of that force on the y-axis.The bars are color-coded to represent the effectiveness of the force used.</b></p>
+```{r, echo=FALSE}
+# Create data frame for force used
+force_used <- data.frame(table(c(
+  police_data$TYPE_OF_FORCE_USED1, 
+  police_data$TYPE_OF_FORCE_USED2, 
+  police_data$TYPE_OF_FORCE_USED3, 
+  police_data$TYPE_OF_FORCE_USED4, 
+  police_data$TYPE_OF_FORCE_USED5, 
+  police_data$TYPE_OF_FORCE_USED6, 
+  police_data$TYPE_OF_FORCE_USED7, 
+  police_data$TYPE_OF_FORCE_USED8, 
+  police_data$TYPE_OF_FORCE_USED9, 
+  police_data$TYPE_OF_FORCE_USED10
+)))
+
+# Remove first row and missing values
+force_used <- slice(force_used, -1)
+force_used <- na.omit(force_used)
+
+# Create data frame for effective counts
+effective_counts <- data.frame(table(police_data$FORCE_EFFECTIVE))
+# Rename the columns in effective_counts
+colnames(effective_counts) <- c("ForceEffective", "Freq")
+# Merge the two data frames
+force_effectiveness <- merge(force_used, effective_counts, all = TRUE)
+force_effectiveness <- na.omit(force_effectiveness)
+# Convert variables to factors
+force_effectiveness$force <- factor(force_effectiveness$Var1)
+force_effectiveness$FORCE_EFFECTIVE <- factor(force_effectiveness$ForceEffective)
+force_effectiveness$FORCE_EFFECTIVE <- na.omit(force_effectiveness$FORCE_EFFECTIVE)
+
+# Create interactive bar plot
+ggplotly(
+  ggplot(force_effectiveness, aes(x = force, fill = FORCE_EFFECTIVE)) +
+    geom_bar() +
+    labs(title = "Effectiveness of Force Used ", x = "Force Used", y = "Frequency", fill = "Effectiveness") +
+    scale_fill_viridis_d() +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5, hjust=1)) +
+    theme(axis.text.y = element_text(size = 8)) +
+    theme(axis.title = element_text(size = 10, face = "bold")) +
+    theme(panel.grid.major.x = element_blank()) +
+    guides(fill = guide_legend(title = "Effectiveness", title.position = "top", ncol = 2))
+)
+```
+<p style="text-align: justify;"><b>The pie chart shows the number of police officers who were injured during incidents. The chart indicates that 90% of the officers weren't injured and 10% were injured.</b></p>
+```{r, echo=FALSE}
+## officer injury
+officer_injury<- police_data$OFFICER_INJURY
+injury_counts <- data.frame(table(police_data$OFFICER_INJURY))
+
+# Generate pie chart
+pie_chart <- ggplot(injury_counts, aes(x = "", y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  ggtitle("No. Police Officers Injured") +
+  theme_void()
+
+# Add percentage labels to pie chart
+pie_chart +
+  geom_text(aes(y = Freq / 2, label = paste0(round(Freq/sum(Freq)*100), "%")), 
+            size = 4, color = "white") +
+  scale_fill_discrete(name = "Police") +
+  labs(x = NULL, y = NULL)
+```
+<p style="text-align: justify;"><b>The table that shows the count of different types of injuries sustained by police officers categorized by their gender and race.According to the table, the male officers have sustained more injuries than female officers across all injury types. The most common injury type for both male and female officers is "Not Injured", followed by "Minor Injury" and "Serious Injury". Interestingly, female officers have reported more injuries in the "Unknown" category compared to male officers. This highlights the need for the officers to pay more attention for their safety, regardless of gender or race.</b></p>
+```{r, echo=FALSE}
+# Officer injury table with gender
+Police_injury_table <- police_data %>%
+  group_by(OFFICER_INJURY_TYPE, OFFICER_GENDER,OFFICER_RACE) %>%
+  summarize(count = n(), .groups = "drop")
+colnames(Police_injury_table) <- c("Injury Type", "Gender", "Race","Count")
+datatable(Police_injury_table, 
+          options = list(pageLength = 10, lengthMenu = c(10, 20, 50)))
+```
+<p style="text-align: justify;"><b>The pie chart shows the number of police officers who have been hospitalized due to incidents that occurred while they were on duty.It is shown that only 2% of the officers had to be hospitalized and 98% hospitalization cases were not severe, and the officers only required brief medical attention.</b></p>
+```{r, echo=FALSE}
+## officer hospitalized 
+officer_hospitalized <- police_data$OFFICER_HOSPITALIZATION
+hospitalized_counts <- data.frame(table(police_data$OFFICER_HOSPITALIZATION))
+
+# Generate pie chart
+pie_chart <- ggplot(hospitalized_counts, aes(x = "", y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  ggtitle("No. of Police Officers Hospitalized") +
+  theme_void()
+
+# Add percentage labels to pie chart
+pie_chart +
+  geom_text(aes(y = Freq / 2, label = paste0(round(Freq/sum(Freq)*100), "%")), 
+            size = 4, color = "white") +
+  scale_fill_discrete(name = "Police") +
+  labs(x = NULL, y = NULL)
+```
+<p style="text-align: justify;"><b>The map is interractive so we can locate the location of each police officer reporting at the incidents.It shows many markers representing the locations of the officers. Each marker has a popup with detailed information about the incident, including the date, time, officer ID, location district, street name, city, and state.</b></p>
+```{r, echo=FALSE}
+police_data$LOCATION_LATITUDE <- as.numeric(police_data$LOCATION_LATITUDE)
+police_data$LOCATION_LONGITUDE <- as.numeric(police_data$LOCATION_LONGITUDE)
+leaflet(data = police_data) %>%
+  addTiles() %>%
+  addMarkers(clusterOptions = markerClusterOptions(),
+             lng = ~LOCATION_LONGITUDE,
+             lat = ~LOCATION_LATITUDE,
+             popup = ~paste("Date:", police_data$INCIDENT_DATE,
+                             "<br> Time:",police_data$INCIDENT_TIME,
+                            "<br> UOF Number:",police_data$UOF_NUMBER,
+                             "<br> Officer ID:",police_data$OFFICER_ID,
+                             "<br> Reporting Area:",police_data$REPORTING_AREA,
+                             "<br> Beat:",police_data$BEAT,
+                             "<br> Sector:",police_data$SECTOR,
+                             "<br> DIVISION:",police_data$DIVISION,
+                            "<br> Gender:",police_data$OFFICER_GENDER,
+                            "<br> Race:",police_data$OFFICER_RACE,
+                             "<br> LOCATION DISTRICT:",police_data$LOCATION_DISTRICT,
+                             "<br> Street Name:", police_data$LOCATION_FULL_STREET_ADDRESS_OR_INTERSECTION,"<br> City:",police_data$LOCATION_CITY,"<br> State:",police_data$LOCATION_STATE))
+```
+<p style="text-align: justify;"><b>The plot shows the distribution of the number of electronic control (EC) cycles used by police officers over the years on the force as & its interactive it allows the viewer to hover over the different parts. The x-axis represents the number of EC cycles, while the y-axis represents the density of the distribution & each color in the plot represents the officers' years on the force.Multiple distributions, with different colors represent the years that the officers have been on the force. The number of EC cycles used by police officers varies over time, with some officers using more EC cycles than others. It shows that the number of EC cycles used by officers generally decreases over time, possibly due to increased experience and training.Overall, the plot explains how the use of EC cycles by police officers changed over time and how experience and training may have influenced this change.</b></p>
+```{r, echo=FALSE}
+taser_used <- data.frame(YEARS = police_data$OFFICER_YEARS_ON_FORCE, NUMBER_EC_CYCLES = police_data$NUMBER_EC_CYCLES)
+taser_used <- taser_used[complete.cases(taser_used), ]
+taser_used <- subset(taser_used, NUMBER_EC_CYCLES != "NULL")
+gg <- ggplot(taser_used, aes(x = NUMBER_EC_CYCLES, fill = YEARS)) + 
+  geom_density(alpha = 0.5) + 
+  labs(x = "Number of EC Cycles", y = "Density", title = "Distribution of EC Cycles by Officer Years")
+p <- ggplotly(gg)
+p
+```
+<p style="text-align: justify;"><b>The pie chart that shows the distribution of two genders in the subjects & displays that there are more male subjects than female subjects.The subjects are divided into two categories: male and female.Each segment represents the percentage of subjects in each category.There are 18.5% female subjects &  81.5% male subjects.</b></p>
+```{r, echo=FALSE}
+##subject gender
+# Filter data for male and female subjects only
+subject_gender <- police_data %>%
+  filter(SUBJECT_GENDER %in% c("Male", "Female"))
+
+# Calculate the percentage of each gender
+gender_percent <- subject_gender %>%
+  group_by(SUBJECT_GENDER) %>%
+  summarize(count = n()) %>%
+  mutate(percent = round(count/sum(count)*100,1))
+
+# Create the pie chart
+ggplot(gender_percent, aes(x="", y=percent, fill=SUBJECT_GENDER)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + ggtitle("Subject Gender")+
+  theme_void() +
+  geom_text(aes(label=paste0(percent,"%")), position=position_stack(vjust=0.5))
+```
+<p style="text-align: justify;"><b>The plot shows the racial distribution of the subjects in a certain dataset. The data contains information on individuals from different racial backgrounds, including American Indian, Asian, Black, Hispanic, White, and Other. The graph is a pie chart that depicts the percentage of subjects from each racial group. The larger the area occupied by a particular color, the higher the percentage of individuals from that racial group. Additionally, the chart includes the percentage of individuals from each racial group, displayed as text labels inside the pie slices. This visualization can be used to identify any imbalances or disparities in the distribution of the subjects based on their race.</b></p>
+```{r, echo=FALSE}
+##subject race
+# Subset the data
+subject_race <- police_data %>%
+  filter(SUBJECT_RACE %in% c("American Ind", "Asian", "Black", "Hispanic", "White", "Other"))
+
+# Count the number of occurrences for each race
+race_counts <- subject_race %>%
+  count(SUBJECT_RACE)
+
+# Calculate percentages
+race_percents <- race_counts %>%
+  mutate(percent = n/sum(n)*100)
+# Create the pie chart with percentages inside
+ggplot(race_percents, aes(x = "", y = percent, fill = SUBJECT_RACE)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  geom_text(aes(label = paste0(round(percent), "%")), 
+            position = position_stack(vjust = 0.5), size = 5)
+```
+<p style="text-align: justify;"><b>This plot represents the police incidents that happened throughout the day. The x-axis shows the time of day, and the y-axis represents the count of incidents that occurred & the different colors represent different reasons for the incidents, like theft, traffic accidents, or noise complaints.We can figure out that certain types of incidents happen more frequently during specific times of the day.Like the incidents related to theft and robbery happen more frequently during the nighttime hours, while incidents related to traffic accidents and noise complaints happen more often during the daytime.</b></p>
+```{r, echo=FALSE}
+# Create data frame
+date_time_reason <- data.frame(
+  date = police_data$INCIDENT_DATE,
+  time = police_data$INCIDENT_TIME,
+  reason = police_data$INCIDENT_REASON
+)
+date_time_reason <- na.omit(date_time_reason)
+date_time_reason <- subset(date_time_reason, reason != "NULL")
+date_time_reason$date <- as.Date(date_time_reason$date, "%m/%d/%Y")
+date_time_reason$time <- as.POSIXct(date_time_reason$time, format="%H:%M:%S")
+
+# Create time series plot
+plot <- date_time_reason %>%
+  mutate(hour = format(time, format = "%H:00:00")) %>%
+  group_by(hour, reason) %>%
+  summarize(count = n()) %>%
+  plot_ly(x = ~hour, y = ~count, color = ~reason, type = "scatter", mode = "lines+markers") %>%
+  layout(xaxis = list(title = "Time"), yaxis = list(title = "Count"), 
+         title = "Incidents by Time and Reason",
+         hovermode = "closest")
+
+# Display the plot
+plot
+```
+<p style="text-align: justify;"><b>The plot shows the reasons for the incidents.The x-axis represents the different reasons for incidents, and the y-axis represents the count of each reason. Each bar represents a different reason for an incident along with its percentage.We can gather that the most common reason for police incidents is "Arrest" & "Service Call"</b></p>
+```{r, echo=FALSE}
+# Create a data frame with table of INCIDENT_REASON
+incident_reason <- data.frame(table(police_data$INCIDENT_REASON))
+incident_reason <- incident_reason[-6,]
+# Calculate percentages
+incident_reason$percentage <- round(100 * incident_reason$Freq / sum(incident_reason$Freq), 1)
+colnames(incident_reason) <- c("Reason", "Freq","percentage")
+# Create a histogram
+P<-ggplot(incident_reason, aes(x = Reason, y = Freq)) +
+  geom_bar(stat = "identity", fill = "blue", color = "black") +
+  labs(title = "Distribution of Incident Reasons", 
+       x = "Incident Reasons", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  scale_x_discrete(labels = function(x) paste0(x, " (", seq_along(x), ")")) +
+  geom_text(aes(label = paste0(incident_reason$percentage, "%"), y = -10), vjust = -1)
+
+# Convert to plotly object
+ggplotly(P)
+```
+<p style="text-align: justify;"><b>This shows the different descriptions of subjects involved in police incidents.The x-axis indicates the description and the y-axis indicates the count.The most common subject description is "Mentally Unstable," followed by "	Alcohol" & the less common descriptions, are "Animal." followed by"FD-Animal" & "FD-Motor Vehicle".Overall,the plot and output give us a better understanding of the different types of subjects involved in police incidents.</b></p>
+```{r, echo=FALSE}
+subject_counts <- data.frame(table(police_data$SUBJECT_DESCRIPTION))
+subject_counts <- subset(subject_counts, Var1 != "NULL")
+colnames(subject_counts) <- c("Description", "Freq")
+
+# create the bar plot
+bar_plot <- ggplot(subject_counts, aes(x = Description, y = Freq)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Subject Description ", x = "Subject Description", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# convert to interactive plot using plotly
+ggplotly(bar_plot)
+```
+<p style="text-align: justify;"><b>The plot shows the top 10 offenses committed by subjects in police encounters.The count of each offense is displayed on the y-axis and the offenses on the x-axis. The length of each bar represents the number of times that offense was committed & it also includes the percentage of each offense out of the total number of offenses committed.We can notice that "APOWW" is the most common offense, followed by "No Arrest" and "Public Intoxication". The top 10 offenses make up a significant portion of all offenses committed by the subjects. </b></p>
+```{r, echo=FALSE}
+# Create a new data frame with counts and percentages
+offences <- police_data %>%
+  group_by(SUBJECT_OFFENSE) %>%
+  summarize(count = n()) %>%
+  mutate(percentage = round(count/sum(count)*100, 2)) %>%
+  arrange(desc(count)) %>%
+  top_n(10, count)
+
+# Create the bar plot with percentages
+ggplot(offences, aes(x = reorder(SUBJECT_OFFENSE, count), y = count, fill = SUBJECT_OFFENSE)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(percentage, "%")), vjust = -0.5, size = 3.5) +
+  labs(title = "Top 10 Subject Offenses", x = "Offense", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = rep(c("#f7cac9", "#a6d49f"), 5)) +
+  coord_flip()
+```
+<p style="text-align: justify;"><b>The pie chart gives the number of subjects who were arrested by the police where each slice represents the number subjects arrested by the police officers.The majority of subjects were indeed arrested, with only a small percentage not being arrested.This suggests that the police are more likely to arrest subjects than not when interacting with them because 86% of the subjects get arrested but 14% are not.</b></p>
+```{r, echo=FALSE}
+##subject disposition
+subject_disposition <- police_data$SUBJECT_WAS_ARRESTED
+# Create data frame with subject counts
+subject_counts <- data.frame(table(police_data$SUBJECT_WAS_ARRESTED))
+
+# Generate pie chart
+pie_chart <- ggplot(subject_counts, aes(x = "", y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  ggtitle("Subject Arrests") +
+  theme_void()
+
+# Add percentage labels to pie chart
+pie_chart +
+  geom_text(aes(label = paste0(round(Freq/sum(Freq)*100), "%")), 
+            position = position_stack(vjust = 0.5), size = 4, color = "white") +
+  scale_fill_discrete(name = "Subject") +
+  labs(x = NULL, y = NULL) +
+  theme(legend.position = "bottom")
+```
+<p style="text-align: justify;"><b>This plot gives us the number of Hispanic subjects who were arrested or not arrested by police based on their gender,the two different colors, green and red,represents the number of subjects who were not arrested, and the number of subjects who were arrested.The x-axis represents gender, and the y-axis represents the count of subjects. The plot has two facets, one for male subjects and one for female subjects, where each facet displays the total count of subjects.We can gather that the number of Hispanic male subjects who were arrested is significantly higher than the number of female subjects who were arrested.  Overall,it highlights the disparities in the number of Hispanic subjects who were arrested or not arrested based on their gender.</b></p>
+```{r, echo=FALSE}
+#Subject Race, Gender, Offense
+Subject_race_gender_table <- table(police_data$SUBJECT_RACE, police_data$SUBJECT_GENDER)
+Subject_race_gender_table <- na.omit(Subject_race_gender_table)
+# Create the data frame
+Subject_gender_race_arrest_table <- data.frame(
+  Gender = police_data$SUBJECT_GENDER,
+  Race = police_data$SUBJECT_RACE,
+  Arrested = police_data$SUBJECT_WAS_ARRESTED)
+# Calculate the counts for each combination of gender, race, and arrest status
+counts <- Subject_gender_race_arrest_table %>%
+  group_by(Gender, Race, Arrested) %>%
+  summarize(count = n(),.groups = "drop")
+ggplot(counts[counts$Race %in% c("Hispanic"), ], aes(x = Gender, y = count, fill = Arrested)) +
+  geom_col(position = position_dodge()) +
+  labs(x = "Gender", y = "Count", fill = "Arrested") +
+  ggtitle("Arrests of different subjects of Hispanic races") +
+  scale_fill_manual(values = c("green", "red")) +
+  facet_wrap(~ Race, nrow = 1)
+```
+<p style="text-align: justify;"><b>The plot shows the number of Black and White subjects who were either arrested or not arrested by police based on their gender.Two different colors, green and red,represent the number of subjects who were not arrested and the number of subjects who were arrested, respectively. The x-axis represents gender, and the y-axis represents the count of subjects. The plot has two facets, one for male subjects and one for female subjects, where each facet displays the total count of subjects.We can gather that the number of Black male and White male subjects who were arrested is significantly higher than the number of female subjects who were arrested.Overall,more male subjects are arrested compared to female subjects and that this disparity was higher among Black and White subjects.</b></p>
+```{r, echo=FALSE}
+ggplot(counts[counts$Race %in% c("Black", "White"), ], aes(x = Gender, y = count, fill = Arrested)) +
+  geom_col(position = position_dodge()) +
+  labs(x = "Gender", y = "Count", fill = "Arrested") +
+  ggtitle("Arrests of different subjects of Black & White races") +
+  scale_fill_manual(values = c("green", "red")) +
+  facet_wrap(~ Race, nrow = 1)
+```
+<p style="text-align: justify;"><b>The plot shows the number of subjects belonging to the American Indian and Asian races who have been arrested or not. The plot is a bar graph that is divided into different categories based on gender and whether they were arrested or not.The x-axis shows the gender of the subject while the y-axis shows the count of subjects.The green bars represent those who were not arrested, while red bars represent those who were arrested.The plot includes two facets, one for Asian subjects and the other for Asian subjects.We can gather that for both American Indian & Asian subjects,more males are arrested than females.
+Overall, the plot and output show the differences in the number of subjects arrested or not in the American Indian and Asian races, based on their gender.</b></p>
+```{r, echo=FALSE}
+ggplot(counts[counts$Race %in% c("American Ind", "Asian"), ], aes(x = Gender, y = count, fill = Arrested)) +
+  geom_col(position = position_dodge()) +
+  labs(x = "Gender", y = "Count", fill = "Arrested") +
+  ggtitle("Arrests of different subjects of American Ind & Asian races") +
+  scale_fill_manual(values = c("green", "red")) +
+  facet_wrap(~ Race, nrow = 1)
+```
+<p style="text-align: justify;"><b>The plot depicts the number of subjects who were arrested or not, categorized by gender and race. It is divided into two sections, one for male and one for female, and each section is further divided based on whether the subject was arrested or not. The x-axis represents gender while the y-axis represents the count of subjects. The colors green represents not arrested and red represents arrested.It focuses on subjects of "Other" races,we can gather that the number of males who were arrested is higher than those who were not arrested.Overall, the plot shows the distribution of arrests among subjects of "Other" races by gender.</b></p>
+```{r, echo=FALSE}
+ggplot(counts[counts$Race %in% c("Other"), ], aes(x = Gender, y = count, fill = Arrested)) +
+  geom_col(position = position_dodge()) +
+  labs(x = "Gender", y = "Count", fill = "Arrested") +
+  ggtitle("Arrests of different subjects of Other races") +
+  scale_fill_manual(values = c("green", "red")) +
+  facet_wrap(~ Race, nrow = 1)
+```
+<p style="text-align: justify;"><b>The table gives us the different types of injuries sustained by subjects during police encounters based on their gender & race.</b></p>
+```{r, echo=FALSE}
+# Subject injury table with gender
+Subject_injury_table <- police_data %>%
+  group_by(SUBJECT_INJURY_TYPE, SUBJECT_GENDER,SUBJECT_RACE) %>%
+  summarize(count = n(), .groups = "drop")
+colnames(Subject_injury_table) <- c("Injury Type", "Gender", "Race","Count")
+datatable(Subject_injury_table, 
+          options = list(pageLength = 10, lengthMenu = c(10, 20, 50)))
+```
+<p style="text-align: justify;"><b>This map shows the location of the subjects reported at the scene of the incidents.</b></p>
+```{r, echo=FALSE}
+# Location
+police_data$LOCATION_LATITUDE <- as.numeric(police_data$LOCATION_LATITUDE)
+police_data$LOCATION_LONGITUDE <- as.numeric(police_data$LOCATION_LONGITUDE)
+
+leaflet(data = police_data) %>%
+  addTiles() %>%
+  addMarkers(clusterOptions = markerClusterOptions(),
+             lng = ~LOCATION_LONGITUDE,
+             lat = ~LOCATION_LATITUDE,
+             popup = ~paste("Date:", police_data$INCIDENT_DATE,
+                            "<br> Time:",police_data$INCIDENT_TIME,
+                            "<br> ID:",police_data$SUBJECT_ID,
+                            "<br> Gender:",police_data$SUBJECT_GENDER,
+                            "<br> Race:",police_data$SUBJECT_RACE,
+                            "<br> Description:",police_data$SUBJECT_DESCRIPTION,
+                            "<br> Offense:",police_data$SUBJECT_OFFENSE,
+                             "<br> Type of Incident:", police_data$INCIDENT_REASON,
+                             "<br> Street Name:", police_data$LOCATION_FULL_STREET_ADDRESS_OR_INTERSECTION,"<br> City:",police_data$LOCATION_CITY,"<br> State:",police_data$LOCATION_STATE))
+```
+<p style="text-align: justify;"><b>This map gives an overview about the incident details.</b></p>
+```{r, echo=FALSE}
+# Location
+police_data$LOCATION_LATITUDE <- as.numeric(police_data$LOCATION_LATITUDE)
+police_data$LOCATION_LONGITUDE <- as.numeric(police_data$LOCATION_LONGITUDE)
+leaflet(data = police_data) %>%
+  addTiles() %>%
+  addMarkers(clusterOptions = markerClusterOptions(),
+             lng = ~LOCATION_LONGITUDE,
+             lat = ~LOCATION_LATITUDE,
+             popup = ~paste("Date:", police_data$INCIDENT_DATE,
+                            "<br> Time:",police_data$INCIDENT_TIME,
+                            "<br> Officer ID:",police_data$OFFICER_ID,
+                            "<br> Subject ID:",police_data$SUBJECT_ID,
+                            "<br> Description:",police_data$SUBJECT_DESCRIPTION,
+                            "<br> Offense:",police_data$SUBJECT_OFFENSE,
+                            "<br> Incident Reason:",police_data$INCIDENT_REASON,
+                            "<br> Force Used:",force_used$Var1,
+                            "<br> Officer Injury:",police_data$OFFICER_INJURY_TYPE,
+                            "<br> Officer Hospitalized:",police_data$OFFICER_HOSPITALIZATION,
+                            "<br> Subject Injury:",police_data$SUBJECT_INJURY_TYPE,
+                            "<br> Subject Arrested:", police_data$SUBJECT_WAS_ARRESTED,
+                            "<br> Street Name:", police_data$LOCATION_FULL_STREET_ADDRESS_OR_INTERSECTION,"<br> City:",police_data$LOCATION_CITY,"<br> State:",police_data$LOCATION_STATE)) 
+```
+<p style="text-align: justify;"><b>The years an officer has been on the force & hospitalized during the incidents.</b></p>
+```{r, echo=FALSE}
+# Create the scatter plot
+plot_ly(data = police_data, x = ~OFFICER_YEARS_ON_FORCE, y = ~OFFICER_HOSPITALIZATION, 
+        type = "scatter", mode = "markers",
+        marker = list(size = 4, color = "blue"), 
+        hovertemplate = paste(
+          "Officer Years on Force: %{x}<br>",
+          "Officer Hospitalization: %{y}<br>"),
+        text = ~paste("Officer Years on Force: ", OFFICER_YEARS_ON_FORCE,
+                      "<br>Officer Hospitalization: ", OFFICER_HOSPITALIZATION)) %>%
+  layout(xaxis = list(title = "Officer Years on Force"), 
+         yaxis = list(title = "Officer Hospitalization"), 
+         title = "Scatter plot of Officer Years on Force vs Officer Hospitalization",
+         hoverlabel = list(bgcolor = "white", font = list(size = 12)))
+```
+<p style="text-align: justify;"><b>Different gender officers have been hospitalized during the incident.</b></p>
+```{r, echo=FALSE}
+# Create a data frame with table results
+gender_hospitalization <- data.frame(table(police_data$OFFICER_GENDER, police_data$OFFICER_HOSPITALIZATION))
+
+# Rename columns
+colnames(gender_hospitalization) <- c("Gender", "Hospitalized", "Count")
+
+# Calculate percentages
+gender_hospitalization$Percentage <- round(gender_hospitalization$Count/sum(gender_hospitalization$Count)*100, 2)
+
+# Create an interactive histogram
+p <- ggplot(gender_hospitalization, aes(x = Hospitalized, y = Percentage, fill = Gender)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
+  labs(x = "Hospitalized", y = "Percentage") +
+  ggtitle("Officer Hospitalization by Gender") +
+  theme_bw()
+
+# Convert plot to plotly object
+p <- ggplotly(p)
+
+# Show plot
+p
+```
+<p style="text-align: justify;"><b>Officers of different races have been injured because of the incident.</b></p>
+```{r, echo=FALSE}
+# create dataframe
+officer_race_injury <- data.frame(table(police_data$OFFICER_RACE, police_data$OFFICER_INJURY))
+
+# rename columns
+colnames(officer_race_injury) <- c("Race", "Injury", "Count")
+
+# convert count column to numeric
+officer_race_injury$Count <- as.numeric(as.character(officer_race_injury$Count))
+
+# calculate percentages by race
+officer_race_injury <- officer_race_injury %>%
+  group_by(Race) %>%
+  mutate(Percentage = round(Count/sum(Count)*100, 2))
+
+# create bar plot
+bar_plot <- ggplot(officer_race_injury, aes(x = Race, y = Count, fill = Injury)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Officer Injury by Race",
+       x = "Race",
+       y = "Count") +
+  theme_minimal()
+
+# add percentage labels
+bar_plot <- bar_plot +
+  geom_text(aes(label = paste0(Percentage, "%")), 
+            position = position_dodge(width = 1), 
+            vjust = -0.5, 
+            size = 3)
+
+# make plot interactive
+ggplotly(bar_plot)
+```
+<p style="text-align: justify;"><b>The plot shows the count of subjects of different races who were either injured or not injured in a particular incident. The x-axis represents the subject's race, and the y-axis represents the count of incidents. The bars in different colors indicate whether the subjects were injured or not. The plot helps us to identify the racial disparities in incidents involving injury. We can see that subjects of all races were injured in the incident, but the count of injured subjects is relatively higher for African American, Hispanic, and Other races. The plot suggests that incidents involving injury have affected individuals from different racial backgrounds, but the impact has not been equal across all races.</b></p>
+```{r, echo=FALSE}
+# create dataframe and remove null and NA values
+subject_race_injury <- data.frame(SUBJECT_RACE = police_data$SUBJECT_RACE, SUBJECT_INJURY = police_data$SUBJECT_INJURY)
+subject_race_injury <- subject_race_injury[complete.cases(subject_race_injury), ]
+subject_race_injury <- subset(subject_race_injury, SUBJECT_RACE != "NULL")
+# create bar plot
+bar_plot <- ggplot(subject_race_injury, aes(x = SUBJECT_RACE, fill = SUBJECT_INJURY)) +
+             geom_bar() +
+             ggtitle("Subject Race and Injury") +
+             xlab("Subject Race") +
+             ylab("Count") +
+             scale_fill_discrete(name = "Injury", labels = c("Not Injured", "Injured"))
+
+# convert to interactive plot using plotly
+ggplotly(bar_plot)
+```
+<p style="text-align: justify;"><b>Seeing if the force used is effective against different races of the subjects.</b></p>
+```{r, echo=FALSE}
+# Create a data frame with SUBJECT_RACE and FORCE_EFFECTIVE columns
+race_effective <- data.frame(police_data$SUBJECT_RACE, police_data$FORCE_EFFECTIVE)
+# Remove NA values
+race_effective <- na.omit(race_effective)
+
+# Rename columns
+colnames(race_effective) <- c("Race", "Force Effective")
+race_effective <- subset(race_effective, Race != "NULL")
+
+# Create interactive box plot
+plot_ly(race_effective, x = ~Race, y = ~`Force Effective`, type = "box")
+```
+<p style="text-align: justify;"><b>The Offences that the subjects are guilty of</b></p>
+```{r, echo=FALSE}
+# create data frame and remove null and NA values
+race_offense <- data.frame(police_data$SUBJECT_RACE, police_data$SUBJECT_OFFENSE,police_data$SUBJECT_GENDER)
+race_offense <- subset(race_offense, police_data$SUBJECT_RACE != "NULL")
+race_offense <- race_offense[complete.cases(race_offense), ]
+colnames(race_offense) <- c("SUBJECT RACE", "OFFENSE","Gender")
+# create interactive table
+datatable(race_offense,
+          options = list(pageLength = 10, lengthMenu = c(10, 20, 30, 50)),
+          filter = 'top',
+          rownames = FALSE)
+```
+<p style="text-align: justify;"><b>This plot shows the location,time,date of the incident & the subject race that were involved in the incidents .</b></p>
+```{r, echo=FALSE}
+# Remove all NA and null values
+police_data_location <- na.omit(police_data)
+police_data_location <- subset(police_data_location, SUBJECT_RACE != "NULL")
+police_data_location %>%
+  plot_ly(x = ~LOCATION_LONGITUDE, y = ~LOCATION_LATITUDE, color = ~SUBJECT_RACE, colors = "Set1") %>% 
+  add_markers(hovertext = ~paste("Date: ", INCIDENT_DATE, "<br>Time: ", INCIDENT_TIME)) %>%
+  layout(title = "Incidents by Location and Subject Race",
+         xaxis = list(title = "Longitude"),
+         yaxis = list(title = "Latitude"),
+         annotations = list(
+           x = -0.7,
+           y = -0.2,
+           text = paste("Number of Incidents: ", nrow(police_data_location)),
+           showarrow = FALSE,
+           xref = "paper",
+           yref = "paper",
+           font = list(size = 14),
+           align = "center"
+         ))
+```
+<p style="text-align: justify;"><b>The plot shows the correlation between different variables related to the subjects which includes information about subjects' gender, race, whether they were arrested, injured, and the type of offense they have committed.It is a matrix that shows the correlation coefficient between each pair of variables, where the darker the color, the stronger the correlation. The diagonal line represents the correlation between each variable with itself, which is always 1. This is useful to understand how different variables are related to each other and which ones have a stronger correlation.</b></p>
+```{r, echo=FALSE}
+subject_data<- police_data %>% 
+  select(SUBJECT_GENDER, SUBJECT_RACE, SUBJECT_WAS_ARRESTED,
+         SUBJECT_INJURY, SUBJECT_INJURY_TYPE,SUBJECT_OFFENSE,SUBJECT_DESCRIPTION) %>%
+  mutate(SUBJECT_DESCRIPTION=factor(SUBJECT_DESCRIPTION),
+         SUBJECT_GENDER = factor(SUBJECT_GENDER),
+         SUBJECT_RACE = factor(SUBJECT_RACE),
+         SUBJECT_INJURY = factor(SUBJECT_INJURY),
+         SUBJECT_INJURY_TYPE = factor(SUBJECT_INJURY_TYPE),
+         SUBJECT_WAS_ARRESTED = factor(SUBJECT_WAS_ARRESTED),
+         SUBJECT_OFFENSE = factor(SUBJECT_OFFENSE))%>%
+  mutate(across(everything(), as.numeric))
+library(ggcorrplot)
+
+# Calculate the correlation matrix for subject_data
+subject_cor <- cor(subject_data)
+
+# Visualize the correlation matrix
+ggcorrplot(subject_cor, hc.order = TRUE, type = "lower", lab = TRUE, lab_size = 3)
+
+```
+
+
+# Conclusion
+<p style="text-align: justify;"><b>In conclusion, the analysis of the policing data set from Dallas, Texas in 2016 provides valuable insights into the patterns and practices of policing in the city. The use of statistical and graphical tools allows for a deeper understanding of the data, and can help identify areas for improvement in policing practices. By promoting transparency and accountability in law enforcement, we can work towards building safer and more just communities.</b></p>
